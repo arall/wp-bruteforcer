@@ -16,12 +16,12 @@ composer install
 # Usage
 
 ```php
-php wpbruteforcer.php bruteforce http://wordpress.org/ wordlist.txt --username admin
+php wpbruteforcer.php bruteforce http://wordpress.org/ --wordlist wordlist.txt --username admin
 ```
 
 If none username is provided, the tool will enumerate the WordPress users and attack all of them.
 ```php
-php wpbruteforcer.php bruteforce http://wordpress.org/ wordlist.txt
+php wpbruteforcer.php bruteforce http://wordpress.org/ --wordlist wordlist.txt
 ```
 
 To get a list of options use:
