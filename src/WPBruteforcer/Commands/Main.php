@@ -170,8 +170,9 @@ class Main extends Command
 
             // Bruteforce
             foreach ($users as $user) {
+                $bruteforcer->setUsername($user);
                 $output->writeln(' [+] Bruteforcing user <comment>' . $user . '</comment>');
-                if ($password = $bruteforcer->bruteforce($user)) {
+                if ($password = $bruteforcer->bruteforce()) {
                     $output->writeln('<info> [!] Password found!</info> <comment>' . $password . '</comment>');
                     $output_data .= $url . ' | ' . $user . ' | ' . $password . PHP_EOL;
                 } else {
