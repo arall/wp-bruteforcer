@@ -249,7 +249,7 @@ class WPBruteforcer
      */
     private function addPassword($password)
     {
-        $this->current_passwords[] = $password;
+        $this->current_passwords[] = rtrim($password, "\r\n");
     }
 
     /**

