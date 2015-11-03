@@ -56,6 +56,13 @@ class Main extends Command
     private $username;
 
     /**
+     * Usernames list path.
+     *
+     * @var string
+     */
+    private $usernames;
+
+    /**
      * Usernames to bruteforce (loaded ones).
      *
      * @var array
@@ -155,6 +162,12 @@ class Main extends Command
                null,
                InputOption::VALUE_REQUIRED,
                'Username to bruteforce (enumerate & bruteforce as default)'
+            )
+            ->addOption(
+               'usernames',
+               null,
+               InputOption::VALUE_REQUIRED,
+               'Usernames list path to bruteforce multiple usernames'
             )
             ->addOption(
                'no-enum',
@@ -265,6 +278,7 @@ class Main extends Command
         $this->wordlist = $this->input->getOption('wordlist');
         $this->tries = $this->input->getOption('tries');
         $this->username = $this->input->getOption('username');
+        $this->usernames = $this->input->getOption('usernames');
         $this->noenum = $this->input->getOption('no-enum');
         $this->notest = $this->input->getOption('no-test');
         $this->max_enum = $this->input->getOption('max-enum');
@@ -327,7 +341,7 @@ class Main extends Command
 
                 return false;
             }
-            $this->urls = file($this->urls);
+            $this->urls = file($this->urls, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         }
         if (empty($this->urls)) {
             $this->output->writeln('<error> [!] No targets found. Exiting...</error>');
@@ -377,6 +391,17 @@ class Main extends Command
         // Single
         if ($this->username) {
             $this->users[] = $this->username;
+        }
+
+        // List
+        if ($this->usernames) {
+            // Check list
+            if (!file_exists($this->usernames)) {
+                $this->output->writeln('<error> [!] Usernames file not found. </error>');
+
+                return false;
+            }
+            $this->users = array_merge($this->users, file($this->usernames, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES));
         }
 
         // Delete duplicated ones
