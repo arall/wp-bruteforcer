@@ -11,7 +11,7 @@ use Arall\WPBruteforcer\WPBruteforcer;
 use DateTime;
 use \Curl\Curl;
 
-class Main extends Command
+class Bruteforce extends Command
 {
     /**
      * Input Interface.
@@ -221,10 +221,6 @@ class Main extends Command
 
         $time = new DateTime('now');
 
-        if (!$this->checkUrl()) {
-            return false;
-        }
-
         if (!$this->loadWordlist()) {
             return false;
         }
@@ -250,6 +246,10 @@ class Main extends Command
 
             // Output current target
             $this->output->writeln(' [+] Target: <comment>' . $url . '</comment>');
+
+            if (!$url = $this->checkUrl($url)) {
+                continue;
+            }
 
             if (!$this->checkXmlrpc()) {
                 continue;
@@ -289,21 +289,25 @@ class Main extends Command
 
     /**
      * Check if the provided URL is up and if it has a redirect.
+     *
+     * @param string $url
+     *
+     * @return string|bool Corrected / original url or false
      */
-    private function checkUrl()
+    private function checkUrl($url)
     {
         $curl = new Curl();
         $curl->setOpt(CURLOPT_SSL_VERIFYPEER, false);
         $curl->setOpt(CURLOPT_FOLLOWLOCATION, true);
-        $curl->get($this->url);
+        $curl->get($url);
 
-        if ($curl->error && $curl->errorCode < 300 && $curl->errorCode >= 400) {
+        if ($curl->error && $curl->errorCode >= 400) {
             $this->output->writeln('<error> [!] Website HTTP error: ' . $curl->errorCode . '</error>');
 
             return false;
         }
 
-        return true;
+        return $url;
     }
 
     /**
@@ -384,7 +388,12 @@ class Main extends Command
         // Enumerate
         if (!$this->noenum) {
             $this->output->writeln(' [+] Enumerating users...');
-            $this->users = $this->bruteforcer->enumerate($this->max_enum);
+            $users = $this->bruteforcer->enumerate($this->max_enum);
+            if(!empty($users)){
+                foreach($users as $user){
+                    $this->users[] = $user['login'];
+                }
+            }
             $this->output->writeln(' [i] <comment>' . count($this->users) . '</comment> user(s) found');
         }
 

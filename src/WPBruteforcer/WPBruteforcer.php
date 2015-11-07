@@ -157,21 +157,27 @@ class WPBruteforcer
     /**
      * Enumerate users using WP authors pages.
      *
-     * @param int $max Limit
+     * @param int $max          Limit
+     * @param int $max_failures Max allowed 404's to give up
      *
      * @return array Array of usernames
      */
-    public function enumerate($max = null)
+    public function enumerate($max = null, $max_failures = 5)
     {
         $users = [];
         $user_id = 0;
+        $failures = 0;
         do {
             $user_id++;
             if ($author = $this->getAuthor($user_id)) {
                 $users[] = $author;
+            } else {
+                $failures++;
             }
             if ($max && $user_id >= $max) {
                 $author = null;
+            } elseif (!$author && $failures < $max_failures) {
+                $author = true;
             }
         } while ($author);
 
@@ -262,18 +268,29 @@ class WPBruteforcer
     }
 
     /**
-     * Get the username from an author (user) Id.
+     * Get the info from an author (user) Id.
      *
      * @param string $user_id
      *
-     * @return string|bool Username or false
+     * @return array|bool User array or false
      */
     private function getAuthor($user_id)
     {
         if ($response = $this->request('/?author=' . $user_id)) {
+            $user = ['id' => $user_id, 'login' => null, 'name' => null];
+            // Login
             preg_match('/archive author author-(.*) author-/', $response, $matches);
             if (isset($matches[1])) {
-                return $matches[1];
+                $user['login'] = $matches[1];
+            }
+            // Name
+            preg_match('/<title>(.*),/', $response, $matches);
+            if (isset($matches[1])) {
+                $user['name'] = $matches[1];
+            }
+
+            if (isset($user['login'])) {
+                return $user;
             }
         }
 

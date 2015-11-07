@@ -24,7 +24,12 @@ If none username is provided, the tool will enumerate the WordPress users and at
 php wpbruteforcer.php bruteforce http://wordpress.org/ --wordlist wordlist.txt
 ```
 
+You can also just enumerate users with:
+```php
+php wpbruteforcer.php enumerate http://wordpress.org/ --limit 20
+```
+
 To get a list of options use:
 ```php
-php wpbruteforcer.php bruteforce -h
+php wpbruteforcer.php -h
 ```
