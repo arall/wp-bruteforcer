@@ -284,9 +284,9 @@ class WPBruteforcer
                 $user['login'] = $matches[1];
             }
             // Name
-            preg_match('/<title>(.*),/', $response, $matches);
+            preg_match('/<title>(.*)[,-]/', $response, $matches);
             if (isset($matches[1])) {
-                $user['name'] = $matches[1];
+                $user['name'] = trim($matches[1]);
             }
 
             if (isset($user['login'])) {
