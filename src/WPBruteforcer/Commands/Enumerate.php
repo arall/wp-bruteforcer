@@ -176,7 +176,7 @@ class Enumerate extends Command
         $this->url = $this->input->getOption('url');
         $this->urls = $this->input->getOption('urls');
         $this->limit = $this->input->getOption('limit');
-        $this->fails = $this->input->getOption('fails');
+        $this->fails = $this->input->getOption('fails') ?: 5;
         $this->output_path = $this->input->getOption('output');
         $this->output_data = '';
     }

