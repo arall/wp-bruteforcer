@@ -14,5 +14,6 @@ $app = new Application('WP Bruteforcer', '1.0');
 
 $app->add(new Arall\WPBruteforcer\Commands\Bruteforce());
 $app->add(new Arall\WPBruteforcer\Commands\Enumerate());
+$app->add(new Arall\WPBruteforcer\Commands\Benchmark());
 
 $app->run();
