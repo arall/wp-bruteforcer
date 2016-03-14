@@ -279,7 +279,7 @@ class WPBruteforcer
         if ($response = $this->request('/?author=' . $user_id)) {
             $user = ['id' => $user_id, 'login' => null, 'name' => null];
             // Login (author)
-            preg_match('/author author-(.+?)/', $response, $matches);
+            preg_match('/author author-(.+?)(?=\s)/', $response, $matches);
             if (isset($matches[1])) {
                 $user['login'] = $matches[1];
             // Login (feed)
