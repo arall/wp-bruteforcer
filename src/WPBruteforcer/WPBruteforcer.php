@@ -65,6 +65,13 @@ class WPBruteforcer
     private $current_line = 0;
 
     /**
+     * Total wordlist lines
+     *
+     * @var integer
+     */
+    private $total_lines = 0;
+
+    /**
      * XML Test body.
      */
     const XML_TEST = '<?xml version="1.0" encoding="UTF-8"?>
@@ -204,6 +211,8 @@ class WPBruteforcer
             return false;
         }
 
+        $this->total_lines = $this->countWordlistLines();
+
         // Bruteforce
         $this->reset();
         $handle = fopen($this->wordlist, "r");
@@ -220,6 +229,25 @@ class WPBruteforcer
     }
 
     /**
+     * Count the wordlist lines.
+     *
+     * @return int
+     */
+    private function countWordlistLines()
+    {
+        $total = 0;
+        $handle = fopen($this->wordlist, "r");
+        if ($handle) {
+            while (($line = fgets($handle)) !== false) {
+                $total++;
+            }
+            fclose($handle);
+        }
+
+        return $total;
+    }
+
+    /**
      * Load a line (password) from the wordlist.
      * When the nº of passwords loaded reach the
      * nº of tries per request, a request is performed.
@@ -233,8 +261,9 @@ class WPBruteforcer
         $this->addPassword($password);
         $this->current_line++;
 
-        // Perform the request once the max tries are reached
-        if ($this->current_line >= $this->tries) {
+        // Perform the request once the max tries are reached or there aren't more lines
+        if (count($this->current_passwords) >= $this->tries || $this->total_lines == $this->current_line) {
+
             $payload = $this->buildPayload();
             $response = $this->xmlrpcRequest($payload);
 
@@ -242,7 +271,7 @@ class WPBruteforcer
                 return $password;
             }
 
-            $this->reset();
+            $this->current_passwords = [];
         }
 
         return false;
